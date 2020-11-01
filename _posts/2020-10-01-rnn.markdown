@@ -1,0 +1,139 @@
+---
+layout: post
+title:  "Redes Neuronales Recurrentes"
+date:   2020-10-01 23:30:34 -0600
+categories: deep learning
+published: false
+---
+Las redes neuronales recurrentes son muy interesantes y funcionan bastante bien
+para ciertos problemas con relativamente poco esfuerzo. Naturalmente surge la
+pregunta ¿Qué las hace especiales y necesarias?
+
+Posiblemente la principal característica al hablar de modelos recurrentes es que
+estos reciben secuencias (de vectores) como entradas y pueden (no necesariamente deben)
+devolver secuencias como output.
+
+Los diferentes tipos de redes recurrentes se presentan a continuación.
+
+Particularment me parecen interesantes por la analogía con un programa. Un programa
+tiene un conjunto de estados internos, recibe una entrada, usa esos estados internos
+para proporcionarnos un output.
+
+Las redes convolucionales son similares: combinan la entrada con sus vectores de
+estados y el mecanismo aprendido que produce un nuevo vector de estados que a su
+vez puede usarse como input. Esta similitud se puede explorar en este paper
+[On The Computational Power Of Neural Nets](http://binds.cs.umass.edu/papers/1992_Siegelmann_COLT.pdf)
+que demuestra que para cualquier función computable, existe una RNN finita que
+puede computarla. Además existen RNNs que son Turing-completas y por lo tanto pueden
+implementar cualquier algoritmo.
+
+Otro hecho interente de este resultado es que ciertas preguntas sobre el comportamiento
+de las RNNs es indecidible.
+
+En este post construiremos una red neuronal recurrente básica y realizaremos algunos
+experimentos para explorar su comportamiento. El código usado en este post está
+disponible en mi repositorio de GitHub.
+
+Una nota adicional es que existen diferentes modelos para las redes recurrentes.
+Por red neuronal recurrente me refiero a la arquitectura LSTM (Long short-term memory
+).
+
+### Celda RNN básica
+
+{% highlight python %}
+import numpy as np
+
+class RNNCell:
+    def __init__(self, input_size, hidden_size, output_size):
+        Wxh = np.random.randn(hidden_size, input_size) * 0.01 # entrada -> hidden
+        Whh = np.random.randn(hidden_size, hidden_size) * 0.01 # hidden -> hidden
+        Why = np.random.randn(output_size, hidden_dim) * 0.01 # hidden -> output
+        self.h = np.zeros((hidden_dim, 1)) # hidden state
+
+    def forward(self, x):
+        """
+        Forward propagation.
+        x: input como un vector con shape(input_size, 1)
+        return: output como un vector con shape (output_size, 1)
+        """
+
+        # Actualizamos el hidden state
+        self.h = np.tanh(np.dot(self.Wxh, x) + self.dot(self.Whh, self.h))
+        # Calculamos el output
+        y = np.dot(self.Why, self.h)
+
+        return y
+{% endhighlight %}
+
+El forward pass para una celda RNN básica (conocida como Vanilla RNN) como se muestra arriba es de la siguiente forma:
+
+$$h_t​=\tanh( W_{xh}​x_t​​+W_{hh}​h_{(t−1)}​​)$$
+
+en donde
+- $$h_t$$ es el hidden state en el *tiempo* $$t$$
+- $$x_t$$ es el input  en el tiempo $$t$$
+- $$h_{t-1}$$ es el hidden state de la capa anterior
+
+mientras que el output es:
+
+$$y_t​ = W_{hy} h_t$$
+
+
+Inicializamos las matrices en `RNNCell` con valores aleatorios, el hidde state `self.h` como un vector nulo y aplicamos la función `np.tanh` como una no-linealida. Los valores adecuados para las matrices se ajustarán durante el backpropagation (por el cual nos preocuparemos después).
+
+Podemos obtener RNN si apilamos varias de estas celdas simples. Por ejemplo, una RNN con 3 capas:
+{% highlight python %}
+rnn1 = RNNCell(#...#)
+rnn2 = RNNCell(#...#)
+rnn3 = RNNCell(#...#)
+# ...
+y1 = rnn1(x)
+y2 = rnn2(y1)
+y = rnn3(y2)
+{% endhighlight %}
+
+Sorprendentemente estos modelos funcionan relativamente *bien*. Y si no funciona nuestro modelo incial, como suele hacerse en deep learning: ¡apilamos más capas!
+
+Existen modelos para redes recurrentes que funcionan mejor en la práctica modificando la dinámica en la actualización de los estados ocultos. Las más conocidas son las LSTM (Long Short-Term Memory) y las GRU (Gated Recurrent Unit). En PyTorch podemos encontrar ambas:
+- [LSTM documentación](https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html)
+- [GRU documentación](https://pytorch.org/docs/stable/generated/torch.nn.GRU.html)
+
+
+En este post trataremos los términos RNN y LSTM de forma indiferente.
+
+### RNN y Lenguaje
+
+Una de las aplicaciones sencillas de los modelos recurrentes es en el procesamiento de lenguaje (caracteres en realidad), proporcionando a una RNN una gran cantidad de texto y entrenar el modelo para que este nos proporcione una distribución de probabilidad del siguiente caracter.
+
+Un esquema del modelo que usaremos se muestra en la siguiente figura.
+
+
+El modelo recibe como entrada un caracter y devuelve una distribucion sobre el alfabeto, es decir la probabilidad sobre cada caracter de ser el siguiente. Podemos producir texto ingresando esta predicción nuevamente al modelo y repetir ad infinitum. Resulta interesante pensar en este modelo porque produce caracter por caracter en vez de producir palabra por palabra. 
+
+El modelo tiene 4 capas LSTM con 128 features en el hidden state y los detalles más técnicos se pueden encontrar en mi repositorio. Algunos de los aspecto que vale la pena mencionar para tomarlos en cuenta es el uso de `nn.CrossEntropyLoss` como function de costo y debido a que las RNN presentan el problema que los gradientes tienden a "explotar" (toman valores grandes en magnitud) es conveniente hacer [gradient clipping](https://deepai.org/machine-learning-glossary-and-terms/gradient-clipping) que consiste en reescalar los gradientes de tal forma que su norma tenga un valor máximo determinado. 
+
+### Experimentos
+
+#### Tolstói
+
+Como primer experimento con este modelo lo alimentaremos con el mi libro favorito: *La guerra y la paz* de Tolstói. Después de entrenar el modelo obtenemos textos como el siguiente:
+
+
+Naturalmente los resultados no son espectaculares pero el texto producido (en su mayoría) aunque no artístico parece coherente. Lo importante es visualizar la estructura del lenguaje que parece haber aprendido. Notar por ejemplo, que genera signos de puntuación, comillas y la agrupación por párrafos como se presentaba en el texto original.
+
+Se han realizado diferentes experimentos con modelos recurrentes para predecir texto estructurado como $$\LaTeX$$ e incluso código fuente en algún lenguaje de programación. Los resultados indican claramente que el modelo recurrente aprende muy bien la *estructura* pero pasa por alto relaciones de dependecia (significado), por ejemplo, produce código en donde los métodos están definidos sin errores de sintaxis, incluso puede agregar comentarios, cerrar y abrir llaves y paréntesis correctamente, pero define variables que no se utilizan, realiza llamadas a métodos que no están definido, etc.
+
+### Vanishing/exploid gradient
+
+Las funcionen no lineales tienden a tener derivadas que pueden ser o bien muy grandes o muy pequeñas (en magnitud)· La dificultad con esto es que cuando el gradiente de algún parámetro es muy grande la actualización del mismo en el backpropagation podría llevarlos muy lejos, generando grandes "saltos" que podrían alejarnos del mínimo de la función objetivo.
+
+Una solución sencilla al problema de exploid gradient es conocida como *gradient clipping* y consiste en "cortar" la norma de los gradientes a un valor máximo predefinido $$M$$ i.e.
+<center>
+$$\Vert \nabla f \Vert = \max \left\{ \Vert \nabla f \Vert , \dfrac{\nabla f}{\Vert \nabla f \Vert} M \right\}$$
+</center>
+
+Check out the [Jekyll docs][jekyll-docs] for more info on how to get the most out of Jekyll. File all bugs/feature requests at [Jekyll’s GitHub repo][jekyll-gh]. If you have questions, you can ask them on [Jekyll Talk][jekyll-talk].
+
+[jekyll-docs]: https://jekyllrb.com/docs/home
+[jekyll-gh]:   https://github.com/jekyll/jekyll
+[jekyll-talk]: https://talk.jekyllrb.com/
