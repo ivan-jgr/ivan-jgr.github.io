@@ -1,0 +1,32 @@
+---
+layout: post
+title:  "Diferenciación Automática en Pytorch"
+date:   2020-10-03 15:00:00 -0600
+categories: pytorch
+published: true
+---
+
+Unas analogía podria ser:
+-  Implementar el backprop "a mano" es como programar en ensamblador, en el sentido de que es poco probable que lo hagamos, pero es importante tener un modelo mental sobre como funciona.
+
+Primero definamos algunos términos importantes:
+- **Diferenciación Automática (Autodiff)**: se refiere en términos generales a un programa que calcula un valor y *automáticamente* construye un procedimiento para calcular las derivadas de ese valor.
+
+- **Backpropagation**: es un caso especial de diferenciación automática aplicada a redes neuronales.
+
+-  **Autograd**: es el nombre de un paquete específico de diferenciación automática (en Pytorch).
+
+- **Autodiff no son diferencias finitas:**
+  - Las diferencias finitas son costosas porque necesitamos hacer un forward pass para cada derivada.
+  - Error numérico (usualmente grande).
+  - Normalmente es usado para testig del autodiff.
+
+- **Autodiff**: es eficiente (complejidad $$O(n)$$) y numéricamente estable. 
+
+Es importante aclarar que autodiff tampoco es diferenciación simbólica que es posible realizar lenguajes como Mathematica (o con librerías somo sympy).
+
+```wl
+D[Log[1 + Exp[w*x+b]], w]
+```
+
+El objetivo del autograd no es computar una fórmula sino un definir un procedimiento para calcular derivadas.
